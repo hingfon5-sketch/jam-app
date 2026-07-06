@@ -245,6 +245,7 @@ export default function App() {
   const [sessionXpEarned, setSessionXpEarned] = useState(0)
   const [isPartyMode, setIsPartyMode] = useState(false)
   const [guestNudgeDismissed, setGuestNudgeDismissed] = useState(false)
+  const [showAvatarEdit, setShowAvatarEdit] = useState(false)
 
   const playerRef = useRef(null)
   const isSyncSource = useRef(false)
@@ -681,12 +682,13 @@ export default function App() {
 
   const updateColor = async (color) => {
     setAvatarColor(color)
+    setAvatarUrl(null)
     if (currentUser && !currentUser.isGuest) {
       await fetch(`${SERVER_URL}/update-color`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: currentUser.username, color })
+        body: JSON.stringify({ username: currentUser.username, color, clearAvatar: true })
       })
-      setCurrentUser(prev => ({ ...prev, avatarColor: color }))
+      setCurrentUser(prev => ({ ...prev, avatarColor: color, avatarUrl: null }))
     }
   }
 
@@ -1313,12 +1315,6 @@ export default function App() {
 
       {/* Create / Join panel — pinned to bottom for easy thumb reach */}
       <div style={{ background: 'var(--col-card)', borderTop: '1px solid var(--col-border)', padding: '12px 14px', flexShrink: 0 }}>
-        {/* Avatar color picker */}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-          {COLORS.map(c => (
-            <div key={c} onClick={() => updateColor(c)} style={{ width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer', border: avatarColor === c ? '2px solid var(--col-text)' : '2px solid transparent', boxSizing: 'border-box' }} />
-          ))}
-        </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
             <input style={{ ...s.input, fontSize: 13, padding: '8px 10px' }} placeholder="Room name" value={roomName} onChange={e => setRoomName(e.target.value)} onKeyDown={e => e.key === 'Enter' && createRoom()} />
@@ -1366,14 +1362,6 @@ export default function App() {
       </div>
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <div style={{ width: 320, background: 'var(--col-nav)', borderRight: '1px solid var(--col-border)', padding: 32, display: 'flex', flexDirection: 'column', gap: 32, overflowY: 'auto' }}>
-          <div>
-            <div style={s.sectionLabel}>Avatar Color</div>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              {COLORS.map(c => (
-                <div key={c} onClick={() => updateColor(c)} style={{ width: 32, height: 32, borderRadius: '50%', background: c, cursor: 'pointer', border: avatarColor === c ? '3px solid #fff' : '3px solid transparent', boxSizing: 'border-box' }} />
-              ))}
-            </div>
-          </div>
           <div>
             <div style={s.sectionLabel}>Create a Jam</div>
             <input style={{ ...s.input, marginBottom: 10 }} placeholder="Room name" value={roomName} onChange={e => setRoomName(e.target.value)} onKeyDown={e => e.key === 'Enter' && createRoom()} />
@@ -1640,16 +1628,43 @@ export default function App() {
         <ToastContainer toasts={toasts} />
         <div style={{ background: 'var(--col-card)', borderRadius: 16, padding: 32, width: '100%', maxWidth: 480, boxShadow: 'var(--shadow-card)' }}>
           <button style={{ ...s.btn, ...s.btnSecondary, marginBottom: 20, padding: '8px 16px', fontSize: 13 }} onClick={() => setScreen(currentRoom ? 'room' : 'home')}>← Back</button>
+          {/* Avatar edit modal */}
+          {showAvatarEdit && (
+            <div onClick={() => setShowAvatarEdit(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+              <div onClick={e => e.stopPropagation()} style={{ background: 'var(--col-card)', borderRadius: 20, padding: 28, width: '100%', maxWidth: 340, boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                  <div style={{ fontSize: 17, fontWeight: 800 }}>Edit Profile Picture</div>
+                  <button onClick={() => setShowAvatarEdit(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--col-dim)', lineHeight: 1, padding: 4 }}>✕</button>
+                </div>
+                {/* Avatar preview */}
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+                  <Avatar name={currentUser.username} color={avatarColor} imageUrl={avatarUrl} size={80} />
+                </div>
+                {/* Photo from camera roll */}
+                <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, width: '100%', padding: '12px', borderRadius: 12, background: '#e94560', color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer', marginBottom: 20, boxSizing: 'border-box' }}>
+                  📷 Choose Photo
+                  <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { if (e.target.files[0]) { uploadAvatar(e.target.files[0]); setShowAvatarEdit(false) } }} />
+                </label>
+                {/* Color picker */}
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--col-dim)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 1 }}>Avatar Color</div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  {COLORS.map(c => (
+                    <div key={c} onClick={() => { updateColor(c); setAvatarUrl(null) }} style={{ width: 36, height: 36, borderRadius: '50%', background: c, cursor: 'pointer', border: avatarColor === c && !avatarUrl ? '3px solid var(--col-text)' : '3px solid transparent', boxSizing: 'border-box', boxShadow: '0 2px 6px rgba(0,0,0,0.2)' }} />
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           {profileView && (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
                 <div style={{ position: 'relative', flexShrink: 0 }}>
                   <Avatar name={profileView.username} color={profileView.avatarColor || '#e94560'} imageUrl={profileView.username === currentUser?.username ? avatarUrl : profileView.avatarUrl} size={64} />
                   {profileView.username === currentUser?.username && !currentUser.isGuest && (
-                    <label style={{ position: 'absolute', bottom: 0, right: 0, width: 22, height: 22, borderRadius: '50%', background: '#e94560', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 12, border: '2px solid var(--col-card)' }} title="Change photo">
-                      📷
-                      <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => e.target.files[0] && uploadAvatar(e.target.files[0])} />
-                    </label>
+                    <button onClick={() => setShowAvatarEdit(true)} style={{ position: 'absolute', bottom: 0, right: 0, width: 22, height: 22, borderRadius: '50%', background: '#e94560', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 12, border: '2px solid var(--col-card)', padding: 0 }} title="Edit profile">
+                      ✏️
+                    </button>
                   )}
                 </div>
                 <div>
