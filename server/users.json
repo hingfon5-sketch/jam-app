@@ -1,0 +1,82 @@
+{
+  "boss": {
+    "username": "boss",
+    "password": "$2b$10$FzI.y8DCvmiIxWa91M2sxu4hI7.6/1TW9uZkxco.gsIWkYVuecnfW",
+    "xp": 125,
+    "avatarColor": "#06b6d4",
+    "songsAdded": 9,
+    "thumbsReceived": 1,
+    "friendRequests": [],
+    "friends": [
+      "boss1"
+    ],
+    "favorites": [
+      {
+        "videoId": "6JHu3b-pbh8",
+        "title": "Thinkin Bout You",
+        "artist": "Frank Ocean - Topic",
+        "thumbnail": "https://i.ytimg.com/vi/6JHu3b-pbh8/default.jpg",
+        "favoritedAt": 1783168278887
+      },
+      {
+        "videoId": "RKD8sVVTEAA",
+        "title": "Self Control",
+        "artist": "Frank Ocean - Topic",
+        "thumbnail": "https://i.ytimg.com/vi/RKD8sVVTEAA/default.jpg",
+        "favoritedAt": 1783168277037
+      },
+      {
+        "videoId": "ToO4VFCoR7U",
+        "title": "White Ferrari",
+        "artist": "Frank Ocean - Topic",
+        "thumbnail": "https://i.ytimg.com/vi/ToO4VFCoR7U/default.jpg",
+        "favoritedAt": 1783168275138
+      },
+      {
+        "videoId": "nNXSSfSmbao",
+        "title": "beabadoobee - Beaches (Official Video)",
+        "artist": "beabadoobeeVEVO",
+        "thumbnail": "https://i.ytimg.com/vi/nNXSSfSmbao/default.jpg",
+        "favoritedAt": 1783168219695
+      },
+      {
+        "videoId": "MxEjnYdfLXU",
+        "title": "I Wonder",
+        "artist": "Kanye West - Topic",
+        "thumbnail": "https://i.ytimg.com/vi/MxEjnYdfLXU/default.jpg",
+        "favoritedAt": 1783168217411
+      },
+      {
+        "videoId": "G6oBqDkNz38",
+        "title": "Bob Dylan - The Man in Me (Official Audio)",
+        "artist": "BobDylanVEVO",
+        "thumbnail": "https://i.ytimg.com/vi/G6oBqDkNz38/default.jpg",
+        "favoritedAt": 1783168163297
+      }
+    ],
+    "minutesListened": 1.0833333333333333,
+    "streak": 1,
+    "lastLoginDate": "2026-07-05",
+    "avatarUrl": "/uploads/avatars/boss.jpeg"
+  },
+  "af": {
+    "username": "af",
+    "password": "$2b$10$TtJP7kv2TNcQvpVMs.eviudpF2dq0VPCFGJ7hF5LEA2w7IzwU7G6a",
+    "xp": 0,
+    "avatarColor": "#e94560",
+    "songsAdded": 0,
+    "thumbsReceived": 0
+  },
+  "boss1": {
+    "username": "boss1",
+    "password": "$2b$10$1g6Rj9P7eGaVgM/ckKykqOMvQuiah3zey9QYgCPXJPGsT45JeL6Dy",
+    "xp": 20,
+    "avatarColor": "#e94560",
+    "songsAdded": 2,
+    "thumbsReceived": 0,
+    "sentRequests": [],
+    "friends": [
+      "boss"
+    ]
+  }
+}
