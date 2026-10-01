@@ -34,6 +34,24 @@ const formatTime = (secs) => {
   return `${m}:${sc.toString().padStart(2, '0')}`
 }
 
+// Subtle ping sound for new chat messages — no audio file needed
+const playChatPing = () => {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(880, ctx.currentTime)
+    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.12)
+    gain.gain.setValueAtTime(0.12, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35)
+    osc.start(ctx.currentTime)
+    osc.stop(ctx.currentTime + 0.35)
+  } catch (e) {}
+}
+
 // Shared styles object — defined once outside App so it's never recreated
 const s = {
   input: { width: '100%', padding: '14px 18px', borderRadius: 10, border: '1px solid var(--col-border)', background: 'var(--col-bg)', color: 'var(--col-text)', fontSize: 15, boxSizing: 'border-box', outline: 'none', transition: 'border-color 0.15s, box-shadow 0.15s' },
@@ -84,8 +102,17 @@ function SearchPanel({ roomId, username, addToast }) {
     if (!query.trim()) return
     try {
       const res = await fetch(`${SERVER_URL}/search?q=${encodeURIComponent(query)}`)
-      setSearchResults(await res.json())
-    } catch (e) {}
+      const data = await res.json()
+      if (!res.ok || !Array.isArray(data)) {
+        addToast(data?.error || 'Search failed', 'error')
+        setSearchResults([])
+        return
+      }
+      setSearchResults(data)
+    } catch (e) {
+      addToast('Search failed', 'error')
+      setSearchResults([])
+    }
   }
 
   const addToQueue = (song) => {
@@ -127,6 +154,7 @@ function SearchPanel({ roomId, username, addToast }) {
 // ── Chat Panel — uncontrolled input so React never touches the value ──────────
 function ChatPanel({ messages, chatEndRef, roomId, username, userLevels, isMobile }) {
   const inputRef = useRef(null)
+  const typingTimeoutRef = useRef(null)
 
   const send = () => {
     if (!inputRef.current) return
@@ -285,13 +313,16 @@ export default function App() {
     if (playerRef.current?.setVolume) playerRef.current.setVolume(val)
   }
 
-  // YouTube player — div appended to body so it always exists
+  // YouTube player — wrapper appended to body, moved into visible slot when in room
   useEffect(() => {
+    const wrapperDiv = document.createElement('div')
+    wrapperDiv.id = 'yt-wrapper'
+    wrapperDiv.style.cssText = 'position:fixed;bottom:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none;overflow:hidden;z-index:-1'
     const playerDiv = document.createElement('div')
     playerDiv.id = 'yt-player'
-    // 1×1 in the bottom-left corner, invisible — just big enough for iOS to allow playback
-    playerDiv.style.cssText = 'position:fixed;bottom:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none;overflow:hidden;z-index:-1'
-    document.body.appendChild(playerDiv)
+    playerDiv.style.cssText = 'width:100%;height:100%;'
+    wrapperDiv.appendChild(playerDiv)
+    document.body.appendChild(wrapperDiv)
 
     const tag = document.createElement('script')
     tag.src = 'https://www.youtube.com/iframe_api'
@@ -299,8 +330,8 @@ export default function App() {
 
     const initPlayer = () => {
       playerRef.current = new window.YT.Player('yt-player', {
-        height: '1', width: '1',
-        playerVars: { autoplay: 1, controls: 0, playsinline: 1 },
+        height: '100%', width: '100%',
+        playerVars: { autoplay: 1, controls: 0, playsinline: 1, rel: 0 },
         events: {
           onReady: () => {
             playerRef.current.setVolume(80)
@@ -317,6 +348,13 @@ export default function App() {
             if (event.data === window.YT.PlayerState.ENDED && isSyncSource.current) {
               socket.emit('song-ended', { roomId: currentRoomIdRef.current })
             }
+          },
+          onError: (event) => {
+            const messages = { 2: 'Invalid video', 5: 'Playback error', 100: 'Video not found', 101: 'This video can\'t be played here (embedding blocked)', 150: 'This video can\'t be played here (embedding blocked)' }
+            addToast(messages[event.data] || 'This video can\'t be played', 'error')
+            if (isSyncSource.current) {
+              socket.emit('song-ended', { roomId: currentRoomIdRef.current })
+            }
           }
         }
       })
@@ -325,8 +363,20 @@ export default function App() {
     if (window.YT && window.YT.Player) initPlayer()
     else window.onYouTubeIframeAPIReady = initPlayer
 
-    return () => { document.body.removeChild(playerDiv) }
+    return () => {
+      if (playerRef.current?.destroy) {
+        try { playerRef.current.destroy() } catch (e) {}
+      }
+      playerRef.current = null
+      if (document.body.contains(wrapperDiv)) document.body.removeChild(wrapperDiv)
+    }
   }, [])
+
+  // The YT player stays permanently parked in its hidden spot in document.body —
+  // it is never moved/reparented, since moving an <iframe> in the DOM causes
+  // Safari (and other browsers) to silently reload it, breaking playback.
+  // Audio plays regardless of where it sits; the visible "Now Playing" box
+  // shows album art instead (see NowPlayingPanel).
 
   // Inject reaction float animation once
   useEffect(() => {
@@ -557,6 +607,7 @@ export default function App() {
     socket.on('new-message', (msg) => {
       setMessages(prev => [...prev, msg])
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+      if (msg.username !== currentUser?.username) playChatPing()
     })
 
     socket.on('thumbs-updated', ({ thumbsUp }) => {
@@ -1673,6 +1724,24 @@ export default function App() {
                   {profileView.isGuest && <div style={{ fontSize: 12, color: 'var(--col-dim)', marginTop: 2 }}>Guest</div>}
                 </div>
               </div>
+              {/* Now Listening badge — shown for friends currently in a room */}
+              {(() => {
+                const fd = friends.find(f => f.username === profileView.username)
+                if (!fd?.online || !fd?.roomId) return null
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--col-bg)', border: '1px solid #22c55e44', borderRadius: 12, padding: '12px 16px', marginBottom: 20 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', flexShrink: 0, boxShadow: '0 0 6px #22c55e' }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#22c55e' }}>Now listening</div>
+                      <div style={{ fontSize: 12, color: 'var(--col-dim)' }}>{fd.roomName ? `in "${fd.roomName}"` : 'in a room'}</div>
+                    </div>
+                    <button className="btn-accent" style={{ ...s.btn, background: '#e94560', color: '#fff', padding: '7px 16px', fontSize: 13 }}
+                      onClick={() => { warmupAudio(); socket.emit('join-room', { roomId: fd.roomId, username: currentUser.username, avatarColor }) }}>
+                      Join Jam
+                    </button>
+                  </div>
+                )
+              })()}
               <div style={{ background: 'var(--col-bg)', borderRadius: 12, padding: 20, marginBottom: 16 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                   <span style={{ color: '#888', fontSize: 13 }}>Level {pLevel.level}</span>
@@ -1805,16 +1874,16 @@ export default function App() {
           <div style={s.sectionLabel}>Now Playing</div>
           {currentSong ? (
             <>
-              {/* Large album art */}
-              <div style={{ position: 'relative', marginBottom: 16, borderRadius: 12, overflow: 'hidden', lineHeight: 0 }}>
-                <img
-                  src={`https://i.ytimg.com/vi/${currentSong.videoId}/hqdefault.jpg`}
-                  alt=""
-                  style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', display: 'block' }}
-                  onError={e => { e.target.src = currentSong.thumbnail }}
-                />
-                {/* Gradient overlay for text legibility */}
-                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '32px 16px 14px', background: 'linear-gradient(transparent, rgba(0,0,0,0.85))' }}>
+              {/* Album art cover — YouTube player stays parked off-screen and plays audio only */}
+              <div style={{ position: 'relative', marginBottom: 16, borderRadius: 12, overflow: 'hidden', lineHeight: 0, aspectRatio: '16/9', background: '#000' }}>
+                {currentSong.thumbnail && (
+                  <img src={currentSong.thumbnail} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(18px) brightness(0.6)', transform: 'scale(1.15)' }} />
+                )}
+                {currentSong.thumbnail && (
+                  <img src={currentSong.thumbnail} alt="" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', maxHeight: '82%', maxWidth: '70%', borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }} />
+                )}
+                {/* Gradient overlay for title text */}
+                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '32px 16px 14px', background: 'linear-gradient(transparent, rgba(0,0,0,0.85))', pointerEvents: 'none', zIndex: 1 }}>
                   <div style={{ fontWeight: 700, fontSize: 16, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentSong.title}</div>
                   <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>{currentSong.artist} · Added by {currentSong.addedBy}</div>
                 </div>
